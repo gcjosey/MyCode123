@@ -1,0 +1,153 @@
+library(tidyr)
+library(dplyr)
+library(lubridate)
+mysearch <- function(pkg){
+require(pkgsearch)
+  cran_package_history(pkg) |> 
+  select(Package,Date,Version,dependencies) |> 
+  rowwise() |> 
+  mutate(Date=ymd(Date),
+         R_VERSION = filter(dependencies,package=="R")) |> 
+  ungroup() |> 
+  arrange(desc(Date))
+}
+
+test<-mysearch("MASS")
+test$R_VERSION
+
+test<-mysearch("Matrix")
+
+#7.3-58.3
+
+install.packages("/home/gcjosey/MASS_7.3-58.3.tar.gz", repos = NULL, type="source")
+
+install.packages("Matrix_1.6-5.tar.gz", repos = NULL, type="source")
+
+install.packages("ggplot2")
+
+install.packages("tidyverse")
+
+library(tidyverse)
+
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install(version = "3.16")
+
+package_list <- c("RColorBrewer", "pheatmap")
+
+library("BiocManager")
+
+install.packages(package_list)
+
+BiocManager::install("DESeq2")
+
+install.packages("readxl")
+library(readxl)
+data <- read_excel("/home/gcjosey/NET_test/R Code/Data/Table_51Genes.xlsx", sheet=2)
+
+covariate_data_Wayne_Gillis <- read.csv("/data/project/jbrose3-lab/elquis/deseq/combinded_data_updated.csv")
+view(covariate_data_Wayne_Gillis)
+
+#covariate_data_Wayne_Gillis$batch <- case_when(covariate_data_Wayne_Gillis$batch,..)
+
+
+#if name in covariate_data_Wayne_Gillis$batch
+
+
+colData.df <- covariate_data_Wayne_Gillis %>%
+  mutate(
+    batch = case_when(
+      str_detect(sample_id, "B") ~ "UAB",
+      str_detect(sample_id, "C") ~ "UAB",
+      str_detect(sample_id, "MNET") ~ "Wayne",
+      TRUE ~ "Unknown" 
+    )
+  ) %>%
+  filter(batch == "UAB") #%>%
+  #rename("sample"="sample_id") %>% ..
+
+BiocManager::install("tximport")
+
+library(tximport)
+#https://bioconductor.org/packages/devel/bioc/vignettes/tximport/inst/doc/tximport.html
+files <- colData.df$file 
+names(files) <- colData.df$sample_id 
+#going with gencode V40 
+txt.csv<-"/data/project/jbrose3-lab/pNET_ADMIXTURE/REF/tx2gene_gencode_v40_primary_assembly.csv"
+tx2gene<- read_csv(txt.csv) %>% dplyr::select(TXNAME,GENEID)
+txi <- tximport(files, type = "salmon", tx2gene = tx2gene)
+
+
+BiocManager::install("tximportData")
+library("tximportData")
+library(DESeq2)
+
+
+####we cam change the design of the analysis batch
+colData.df$scaled_sample_age <- scale(colData.df$sample_age) 
+
+colData.df <- colData.df %>%
+  mutate(race = as.factor(race), grade = as.factor(grade), sex= as.factor(sex))
+dds <- DESeqDataSetFromTximport(
+  txi,
+  colData.df,
+  design= ~  scaled_sample_age + race + sex + grade 
+)
+
+dds <- estimateSizeFactors(dds)
+normalized_counts <- counts(dds, normalized= TRUE)
+
+library(pheatmap)
+vsd_cor <- vst(dds,blind=TRUE) %>%
+  assay() %>%
+  cor() 
+
+rownames(colData.df) <- colData.df$sample_id
+
+hm <- pheatmap(vsd_cor,
+  annotation = select(colData.df, race)
+)
+
+ggsave("/home/gcjosey/NET_test/R Code/figs/heatmap.png",hm)
+
+pca <- plotPCA(vsd, intgroup="race")
+
+ggsave("/home/gcjosey/NET_test/R Code/figs/PCA.png", pca)
+
+filter <- rowSums(normalized_counts >= 10) >= 2
+
+dds <- dds[filter, ]
+
+deseq <- DESeq(dds)
+
+
+disp_fig <- plotDispEsts(deseq)
+
+png("/home/gcjosey/NET_test/R Code/figs/disp.png")
+plotDispEsts(deseq)
+dev.off()
+
+res <- results(deseq, contrast = c("race","black","white"))
+
+library(biomaRt)
+
+BiocManager::install("biomaRt")
+
+mart = useMart(biomart="ensembl", dataset="hsapiens_gene_ensembl")
+
+
+
+res.df <- as.data.frame(res) %>% rownames_to_column("gene_vers") %>%
+  mutate(gene_ids=stringr::str_replace(gene_vers, 
+    pattern = ".[0-9]+$",replacement=""))
+
+library(dplyr)
+
+ids_symbols_desc<-biomaRt::getBM(attributes = c('ensembl_gene_id',
+  "hgnc_symbol",
+  "entrezgene_id"),
+  filter = "ensembl_gene_id",
+  values = res.df$gene_ids,
+  mart = mart)
+
+  
