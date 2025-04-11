@@ -1,0 +1,15 @@
+
+# parallel
+
+module load parallel
+
+# Adapter sequences
+
+	#• 5'(-a)
+	#	○ AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+	#• 3'(-A)
+	#	○ AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+# Skeleton 
+
+cutadapt -a ADAPTER_FWD -A ADAPTER_REV -o out.1.fastq -p out.2.fastq reads.1.fastq reads.2.fastq
