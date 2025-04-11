@@ -1,0 +1,20 @@
+#!/bin/bash
+#SBATCH --chdir=/data/project/jbrose3-lab/Gina/FastQ
+#SBATCH --nodes=1
+#SBATCH --job-name=FastQC
+#SBATCH --ntasks=1
+#SBATCH --partition=express
+#SBATCH --mem-per-cpu=12G
+#SBATCH --cpus-per-task=1
+#SBATCH --out=%x_%j.out
+#SBATCH --error=%x_%j.err
+#SBATCH --time=02:00:00
+#SBATCH --mail-user=gcjosey@uab.edu
+#SBATCH --mail-type=ALL
+module load FastQC/0.11.9-Java-11
+
+dir1=/data/project/jbrose3-lab/pNET_ADMIXTURE/fastq/Gillis_UAB/HJK2WDSX7
+
+#find $dir1 -type f -name "*.fastq.gz" | fastqc
+
+fastqc -o /data/project/jbrose3-lab/Gina/FastQ/ "$dir1"/*.fastq.gz
